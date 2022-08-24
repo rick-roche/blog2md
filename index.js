@@ -48,6 +48,11 @@ if (fs.existsSync(outputDir)) {
 }
 else{
     fs.mkdirSync(outputDir);
+    fs.mkdirSync(outputDir+'/events');
+    fs.mkdirSync(outputDir+'/posts');
+    fs.mkdirSync(outputDir+'/pages');
+    fs.mkdirSync(outputDir+'/artists');
+    fs.mkdirSync(outputDir+'/comments');
 }
 
 
@@ -109,6 +114,7 @@ function wordpressImport(backupXmlFile, outputDir){
                 var title = '';
                 var content = '';
                 var tags = [];
+                var cats = [];
                 var draft = false;
                 var published = '';
                 var comments = [];
@@ -117,22 +123,57 @@ function wordpressImport(backupXmlFile, outputDir){
                 var fileContent = '';
                 var fileHeader = '';
                 var postMaps = {};
+                var postType = '';
+                var authors = [];
 
                 posts.forEach(function(post){
+                    // console.log(post);
                     var postMap = {};
 
                     title = post.title[0].trim();
 
                     // console.log(title);
+                    authors = post['dc:creator'];
+
+
+                    var authorString = '';
+
+                    if (authors && authors.length){
+                        authors.forEach(function (author, index){
+                            // console.log(author);
+
+                            if(author === 'rickdisco' || author === 'admin') {
+                                authors[index] = 'Rick Disco';
+                            }
+                        });
+
+                        console.log(authors);
+
+                        authorString = 'authors: [\"' + authors.join("\", \"") + "\"]\n";
+                    }
 
                     // if (title && title.indexOf("'")!=-1){
                     title = title.replace(/'/g, "''");
                     // }
 
-                    draft = post["wp:status"] == "draft"
+                    draft = post["wp:status"] != "publish"
                     published = post.pubDate;
                     comments = post['wp:comment'];
-                    fname = sanitize(decodeURI(post["wp:post_name"][0])) || post["wp:post_id"];
+                    postType = post['wp:post_type'];
+                    // console.log('PT ' + postType);
+                    if(postType == 'event' || postType == 'post') {
+                        if(published[0].length > 15) {
+                            console.log(`make a date: '${published}'`);
+                            var d = new Date(published).toISOString().split('T')[0];
+                            console.log(`date prefix: '${d}'`);
+                            // console.log(`date prefix: '${new Date(published).toISOString().split('T')[0]}'`);
+                            fname = d + '-' + sanitize(decodeURI(post["wp:post_name"][0])) || post["wp:post_id"];
+                        } else {
+                            fname = sanitize(decodeURI(post["wp:post_name"][0])) || post["wp:post_id"];
+                        }
+                    } else {
+                        fname = sanitize(decodeURI(post["wp:post_name"][0])) || post["wp:post_id"];
+                    }
                     markdown = '';
                     // if (post.guid && post.guid[0] && post.guid[0]['_']){
                     //     fname = path.basename(post.guid[0]['_']);
@@ -147,26 +188,54 @@ function wordpressImport(backupXmlFile, outputDir){
                     }
 
                     tags = [];
+                    cats = [];
 
                     var categories = post.category;
                     var tagString = '';
+                    var catString = '';
 
                     if (categories && categories.length){
                         categories.forEach(function (category){
+                            // console.log(category);
+                            // console.log(category['$'].domain);
                             // console.log(category['_']);
-                            tags.push(category['_']);
+
+                            if(category['$'].domain === 'category') {
+                                cats.push(category['_']);
+                            } else {
+                                tags.push(category['_']);
+                            }
                         });
 
                         // console.log(tags.join(", "));
                         // tags = tags.join(", ");
-                        tagString = 'tags: [\'' + tags.join("', '") + "']\n";
+                        tagString = 'tags: [\"' + tags.join("\", \"") + "\"]\n";
+                        catString = 'categories: [\"' + cats.join("\", \"") + "\"]\n";
                         // console.log(tagString);
                     }
 
                     var pmap = {fname:'', comments:[]};
-                    pmap.fname = outputDir+'/'+fname+'-comments.md';
+                    if(postType == 'event' || postType == 'page' || postType == 'post') {
+                        pmap.fname = outputDir+"/"+"comment"+'s/'+fname+'-comments.md';
+                    } else {
+                        pmap.fname = outputDir+'/'+fname+'-comments.md';
+                    }
 
-                    fname = outputDir+'/'+fname+'.md';
+                    if(postType == 'event' || postType == 'post') {
+                        fname = outputDir+'/'+postType+'s/'+fname+'.md';
+                    } else if(postType == 'page') {
+                        var link = post['link'][0];
+                        console.log(post['link'])
+                        console.log(link)
+                        if(link.includes('artists/')) {
+                            fname = outputDir+'/artists'+'/'+fname+'.md';
+                        } else {
+                            fname = outputDir+'/'+postType+'s/'+fname+'.md';
+                        }
+                    } else {
+                        fname = outputDir+'/'+fname+'.md';
+                    }
+
                     pmap.postName = fname;
                     console.log(`fname: '${fname}'`);
 
@@ -180,7 +249,40 @@ function wordpressImport(backupXmlFile, outputDir){
                         markdown = tds.turndown(content);
                         // console.log(markdown);
 
-                        fileHeader = `---\ntitle: '${title}'\ndate: ${published}\ndraft: ${draft}\n${tagString}---\n`;
+                        // Thumbnails
+                        var thumbnail = '';
+                        var featured = '';
+                        if(post["wp:postmeta"]) {
+                            var postMeta = post["wp:postmeta"];
+                            // console.log(postMeta);
+
+                            var thumbnailMeta = postMeta.filter(m => {return m['wp:meta_key'][0] === 'thumbnail'});
+                            var featuredMeta = postMeta.filter(m => {return m['wp:meta_key'][0] === 'featured'});
+
+                            // console.log(thumbnailMeta);
+                            // console.log(featuredMeta);
+                            if(thumbnailMeta.length > 0) {
+                                thumbnail = thumbnailMeta[0]['wp:meta_value'][0].replace('http://localhost', '');
+                                // console.log(thumbnail);
+                            }
+
+                            if(featuredMeta.length > 0) {
+                                featured = featuredMeta[0]['wp:meta_value'][0].replace('http://localhost', '');
+                                // console.log(featured);
+                            }
+                        }
+
+                        fileHeader = `---\ntitle: '${title}'\ndate: ${published}\ndraft: ${draft}\n${authorString}${tagString}${catString}`;
+                        if(thumbnail.length > 0) {
+                            fileHeader += `thumbnail: '${thumbnail}'\n`;
+                        }
+                        if(featured.length > 0) {
+                            fileHeader += `featured: '${featured}'\n`;
+                        }
+
+                        // fileHeader += `type: ${postType}\n`;
+                        fileHeader += '---\n';
+
                         fileContent = `${fileHeader}\n${markdown}`;
                         pmap.header = `${fileHeader}\n`;
 

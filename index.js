@@ -81,25 +81,25 @@ function wordpressImport(backupXmlFile, outputDir){
     fs.readFile(backupXmlFile, function(err, data) {
         parser.parseString(data, function (err, result) {
             if (err) {
-                console.log(`Error parsing xml file (${backupXmlFile})\n${JSON.stringify(err)}`); 
+                console.log(`Error parsing xml file (${backupXmlFile})\n${JSON.stringify(err)}`);
                 return 1;
             }
-            // console.dir(result); 
+            // console.dir(result);
             // console.log(JSON.stringify(result)); return;
             var posts = [];
-            
+
             // try {
                 posts = result.rss.channel[0].item;
-                
+
                 console.log(`Total Post count: ${posts.length}`);
 
                 posts = posts.filter(function(post){
                     var status = '';
                     if(post["wp:status"]){
-                        status = post["wp:status"].join(''); 
+                        status = post["wp:status"].join('');
                     }
                     // console.log(post["wp:status"].join(''));
-                    return status != "private" && status != "inherit" 
+                    return status != "private" && status != "inherit"
                 });
 
 
@@ -117,12 +117,12 @@ function wordpressImport(backupXmlFile, outputDir){
                 var fileContent = '';
                 var fileHeader = '';
                 var postMaps = {};
-                
+
                 posts.forEach(function(post){
                     var postMap = {};
 
                     title = post.title[0].trim();
-                    
+
                     // console.log(title);
 
                     // if (title && title.indexOf("'")!=-1){
@@ -141,11 +141,11 @@ function wordpressImport(backupXmlFile, outputDir){
 
                     console.log(`\n\n\n\ntitle: '${title}'`);
                     console.log(`published: '${published}'`);
-                    
+
                     if (comments){
-                        console.log(`comments: '${comments.length}'`);    
+                        console.log(`comments: '${comments.length}'`);
                     }
-                    
+
                     tags = [];
 
                     var categories = post.category;
@@ -169,7 +169,7 @@ function wordpressImport(backupXmlFile, outputDir){
                     fname = outputDir+'/'+fname+'.md';
                     pmap.postName = fname;
                     console.log(`fname: '${fname}'`);
-                    
+
                     if (post["content:encoded"]){
                         // console.log('content available');
                         var postContent = post["content:encoded"].toString();
@@ -185,7 +185,7 @@ function wordpressImport(backupXmlFile, outputDir){
                         pmap.header = `${fileHeader}\n`;
 
                         writeToFile(fname, fileContent);
-                        
+
                     }
 
                     //comments:
@@ -249,7 +249,7 @@ function getFileName(text) {
             .toLowerCase();              // finally make it all lower case
     return newFileName;
 }
- 
+
 function bloggerImport(backupXmlFile, outputDir){
     var parser = new xml2js.Parser();
     // __dirname + '/foo.xml'
@@ -285,7 +285,7 @@ function bloggerImport(backupXmlFile, outputDir){
 
                 posts.forEach(function(entry){
                     var postMap = {};
-                    
+
                     var title = entry.title[0]['_'];
                     // title = tds.turndown(title);
                     if (title && title.indexOf("'")!=-1){
@@ -302,7 +302,7 @@ function bloggerImport(backupXmlFile, outputDir){
                     console.log(`title: "${title}"`);
                     console.log(`date: ${published}`);
                     console.log(`draft: ${draft}`);
-                    
+
                     var sanitizedTitle = getFileName(title)
 
                     var urlLink = entry.link.filter(function(link){
@@ -329,13 +329,13 @@ function bloggerImport(backupXmlFile, outputDir){
                         markdown = tds.turndown(content);
                         // console.log(markdown);
 
-                        
+
                     }
 
                     var tagLabel = [];
                     var tags = [];
 
-                    
+
                     tagLabel = entry.category.filter(function (tag){
                         // console.log(`tagged against :${tag['$'].term}`);
                         return tag['$'].term && tag['$'].term.indexOf('http://schemas.google')==-1;
@@ -345,7 +345,7 @@ function bloggerImport(backupXmlFile, outputDir){
                         // console.log(`tagged against :${tag['$'].term}`);
                         tags.push(tag['$'].term);
                     });
-                    
+
 
                     console.log(`tags: \n${tags.map(a=> '- '+a).join('\n')}\n`);
 
@@ -368,7 +368,7 @@ function bloggerImport(backupXmlFile, outputDir){
                     postMaps[postMap.pid] = postMap;
 
                     writeToFile(fname, fileContent)
-                    
+
                 });
 
 
@@ -382,33 +382,33 @@ function bloggerImport(backupXmlFile, outputDir){
                 comment.published = entry['published'][0];
 
                 if(entry['title'][0] && entry['title'][0]["_"]){
-                    comment.title = tds.turndown(entry['title'][0]["_"]);    
+                    comment.title = tds.turndown(entry['title'][0]["_"]);
                 }
 
                 if (entry['content'][0] && entry['content'][0]["_"]){
-                    comment.content = tds.turndown(entry['content'][0]["_"]);    
+                    comment.content = tds.turndown(entry['content'][0]["_"]);
                 }
-                
+
                 comment.author = {name: '', email: '', url: ''};
-                
+
                 if(entry['author'][0]["name"] && entry['author'][0]["name"][0]){
-                    comment.author.name = entry['author'][0]["name"][0];    
+                    comment.author.name = entry['author'][0]["name"][0];
                 }
-                
+
                 if (entry['author'][0]["email"] && entry['author'][0]["email"][0]){
-                    comment.author.email = entry['author'][0]["email"][0];    
+                    comment.author.email = entry['author'][0]["email"][0];
                 }
-                
+
                 if (entry['author'][0]["uri"] && entry['author'][0]["uri"][0]){
-                    comment.author.url = entry['author'][0]["uri"][0];    
+                    comment.author.url = entry['author'][0]["uri"][0];
                 }
-                
+
                 postMaps[postId].comments.push(comment);
             });
 
             // console.log(JSON.stringify(postMaps)); return;
             writeComments(postMaps);
-           
+
             }
             console.log('Done');
         });
@@ -442,7 +442,7 @@ function writeComments(postMaps){
             }else{
                 writeToFile(postMaps[pmap].fname, `${postMaps[pmap].header}\n${ccontent}`);
             }
-            
+
         }
     }
 }
@@ -473,5 +473,5 @@ function writeToFile(filename, content, append=false){
             console.dir(err);
         }
     }
-    
+
 }
